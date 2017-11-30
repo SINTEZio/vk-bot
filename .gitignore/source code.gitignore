@@ -1,0 +1,346 @@
+Tab Tab1 = instance.ActiveTab;
+
+SibboraHelper.WebHelper wHelper = new SibboraHelper.WebHelper(instance, project);
+wHelper.GlobalKMEmulate = false;
+wHelper.AllStepsLog.Options.GetScreenshots = false;
+bool ProtectXPath = true;
+
+Random rndGenerator = new Random();
+int intRandomNumber = 0;
+int i=0;
+
+bool blnPromoPost = Convert.ToBoolean(project.Variables["promoVK"].Value);
+bool blnPostSite = Convert.ToBoolean(project.Variables["post_link"].Value);
+
+int PauseBefore = rndGenerator.Next(0, 50);
+int PauseBetweenChecks = rndGenerator.Next(0, 50);
+int Timeout = rndGenerator.Next(15000, 30000);
+int FullEmulationDelayFrom = rndGenerator.Next(0, 50);
+int FullEmulationDelayTo = rndGenerator.Next(0, 50);
+int SendTextMinDelay = rndGenerator.Next(0, 50);
+int SendTextMaxDelay = rndGenerator.Next(0, 50);
+
+int intSpeedModeSend = rndGenerator.Next(0, 5000);
+wHelper.PauseBefore = intSpeedModeSend;
+
+string strPathPromoImg = project.Variables["promoImg"].Value;
+string strSpintax = string.Empty;
+string strTextPromo = string.Empty;
+
+string strRepost = project.Variables["repost"].Value;
+bool boolWorkingLink = Convert.ToBoolean(project.Variables["working_link"].Value);
+string strLinkAva = project.Variables["link_ava"].Value;
+string strPornoLink = project.Variables["link_in_list"].Value;
+string strWriteStatus = project.Variables["write_status"].Value;
+string linkPath = project.Variables["linkPath"].Value;
+string linkTextPath = project.Variables["linkTextPath"].Value;
+
+IZennoList lstLog = project.Lists["log"];
+IZennoList lstLinkPornoSite = project.Lists["lstLinkPornoSite"];
+IZennoList lstTextPost = project.Lists["lstTextPost"];
+
+List<string> lstTemp = new List<string>(); 
+List<string> lstIMG = new List<string>();
+List<string> lstImgPost = new List<string>();
+//lstIMG.AddRange(Directory.GetFiles(strPathPromoImg)); //используйте SearchOption.TopDirectoryOnly если не нужно искать в поддиректориях
+
+// путь к ReCaptchaGnizer и Recaptcha_autosubmit
+string rcg_path_auto = project.Directory + @"\Vk Happy Birday\ReCaptchaGnizer_autosubmit.xmlz";
+string rcg_path = project.Directory + @"\Vk Happy Birday\ReCaptchaGnizer.xmlz";
+string strResultFileName = String.Empty; //Объявим переменную, в которую будет помещён путь к файлу
+string strSourceReCaptchaGnizer = project.Directory + @"\Vk Happy Birday\";
+lstTemp.AddRange(Directory.GetFiles(strSourceReCaptchaGnizer, "*.xmlz", SearchOption.AllDirectories));
+
+var mapVars = new List<Tuple<string, string>>();
+mapVars.Add(new Tuple<string, string>("proxy", "IN_proxy"));  // proxy - переменная в текущем проекте, IN_proxy - переменная в ReCaptchaGnizer
+mapVars.Add(new Tuple<string, string>("proxytype", "IN_proxytype"));  // proxytype - переменная в текущем проекте, IN_proxytype - переменная в ReCaptchaGnizer
+instance.WaitFieldEmulationDelay();
+// Эмулировать ввод текста
+instance.SendText("{ESC}", 15);
+string strUrlCode = string.Empty;
+string strCodePart1 = string.Empty;
+string strCodePart2 = string.Empty;
+string Token = string.Empty;
+string strUserId = string.Empty;
+string strUrlUser = string.Empty;
+string strProxy = project.Variables["proxy"].Value;
+string strUserAgent = project.Variables["UserAgent"].Value;
+string strCookies = string.Empty;
+	
+string strIdAplication = project.Variables["id_zapol"].Value;
+string strSecretKey = project.Variables["secret"].Value;
+lock (SyncObjects.InputSyncer) {
+	Tab1.Navigate("https://oauth.vk.com/authorize?client_id="+ strIdAplication +"%20&display=page&redirect_uri=http://vk.com&scope=friends,photos,audio,video,pages,status,notes,messages,wall,docs,groups,notifications,stats,email,market&response_type=code&v=5.65");
+	Tab1.WaitDownloading();
+	if (!Tab1.FindElementByXPath("//button[contains(@class, 'flat_button fl_r button_indent')]",0).IsVoid) {
+		Tab1.FindElementByXPath("//button[contains(@class, 'flat_button fl_r button_indent')]",0).Click();
+		Tab1.WaitDownloading();
+	}
+	strUrlCode = Tab1.URL;
+	string[] arrCode = strUrlCode.Split('=');
+	strCodePart1 = arrCode[0];
+	strCodePart2 = arrCode[1];
+	Tab1.Navigate("https://oauth.vk.com/access_token?client_id="+ strIdAplication +"&client_secret="+ strSecretKey +"&redirect_uri=http://vk.com&code="+strCodePart2);
+	Tab1.WaitDownloading();
+	Token = new Regex(@"(?<=access_token"":"").*?(?="")").Match(Tab1.FindElementByXPath("//pre",0).InnerHtml).Value;
+	strUserId = new Regex(@"(?<=user_id"":).*(?=})").Match(Tab1.FindElementByXPath("//pre",0).InnerHtml).Value;
+	if (strUserId.Contains("@")) strUserId = new Regex(@".*(?=,)").Match(strUserId).Value;
+	Tab1.Navigate("https://vk.com/");
+	Tab1.WaitDownloading();
+	strUrlUser = Tab1.FindElementByXPath("//li[@id='l_pr']/a[@class='left_row']",0).GetAttribute("href");;
+}
+Tab1.FindElementByXPath("//nav/ol/li[1]/a/descendant::span[contains(@class,'left_label')]",0).Click();
+Tab1.WaitDownloading();
+Thread.Sleep(5000);
+string strQuery = string.Empty;
+string strAPIResponse = string.Empty;
+string strText = string.Empty;
+string strPhoto = string.Empty;
+string strId = string.Empty;
+string strIdAlbom = string.Empty;
+string strCookie = instance.GetSuperCookie();
+
+if (strRepost!=string.Empty) {
+//	strRepost = new Regex(@"(?<=wall).*").Match(strRepost).Value;
+	strRepost = new Regex(@"(?<=com/).*").Match(strRepost).Value;
+	if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+	// Делаем  репост         
+	strQuery = String.Format("https://api.vk.com/method/wall.repost?object={0}&mark_as_ads=0&access_token={1}&v=5.65", 
+		strRepost, Token);    
+	strAPIResponse = ZennoPoster.HttpGet(strQuery, "", "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.BodyOnly, 
+		AdditionalHeaders: new [] {"Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"});	
+	// Получаем все записи со стены 
+	strQuery = String.Format("https://api.vk.com/method/wall.get?owner_id={0}&count=1&filter=owner&extended=0&access_token={1}&v=5.65", 
+		strUserId, Token);    
+	strAPIResponse = ZennoPoster.HttpGet(strQuery, "", "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.BodyOnly, 
+		AdditionalHeaders: new [] {"Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"});
+	JObject objParsedJsonId = JObject.Parse(strAPIResponse);
+	IEnumerable<JToken> userTokensId = objParsedJsonId.SelectTokens("response.items[*]", false);
+	foreach (JToken userToken in userTokensId) {
+		strId = (string) userToken.SelectToken("id");
+		break;
+	}
+	// Закрепляю пост у себя на стене 
+	strQuery = String.Format("https://api.vk.com/method/wall.pin?owner_id={0}&post_id={1}&access_token={2}&v=5.68", 
+		strUserId, strId, Token); 
+	strAPIResponse = ZennoPoster.HttpGet(strQuery, "", "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.BodyOnly, 
+		AdditionalHeaders: new [] {"Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"});	
+	project.SendInfoToLog("Пост на стене закрепил",true);
+}
+if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+if (strWriteStatus!=string.Empty) {
+	strQuery = String.Format("https://api.vk.com/method/status.set?text={0}&access_token={1}&v=5.68", 
+		strWriteStatus, Token);    
+	strAPIResponse = ZennoPoster.HttpGet(strQuery, "", "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.BodyOnly, 
+		AdditionalHeaders: new [] {"Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"});	
+	project.SendInfoToLog("Статус закрепил",true);
+}
+if (lstLinkPornoSite.Count!=0) {
+	lock (SyncObjects.ListSyncer) {
+		strPornoLink = lstLinkPornoSite[0];
+		lstLinkPornoSite.RemoveAt(0);
+		lstLinkPornoSite.Add(strPornoLink);
+	}
+}
+string strRandomText = string.Empty;
+strCookies = instance.GetSuperCookie(strPornoLink);
+if (blnPostSite) {
+	string strFileDownloadResult = project.Variables["dowmload"].Value;
+	string strNewLinkImg = string.Empty;
+	string strLinks = project.Variables["strLink"].Value;
+	string strBestImageLink = string.Empty;
+
+	List<string> lstLinkProfAll = new List<string>();
+	List<string> lstLinkPhoto = new List<string>();
+	List<string> lstPhoto = new List<string>();
+	string regex = string.Empty;
+	for (int N=0; N<3; N++) {
+		int RnD = new Random().Next(0,380);
+		string strbridesbay = ZennoPoster.HttpGet("https://bridesbay.com/women-list/page"+RnD+"", strProxy, "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.HeaderAndBody, 15000);
+
+		regex = @"(?<=<a\ href=""/).*(?=/""><span>)";
+		if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+		foreach (Match rxMatch in Regex.Matches(strbridesbay, regex)) {
+			if (rxMatch.Value!=string.Empty) lstLinkProfAll.Add("https://bridesbay.com/"+rxMatch.Value);
+		}
+		if (lstLinkProfAll.Count==0) {
+			project.SendInfoToLog("Не спарсились ссылки на девушек",true);
+			continue;
+		} else {
+			break;
+		}
+	}
+	int Fuck = new Random().Next(0,lstLinkProfAll.Count);
+	strQuery = lstLinkProfAll[Fuck];
+	string strWoman = ZennoPoster.HttpGet(strQuery, strProxy, "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.HeaderAndBody, 15000);
+
+	regex = @"(?<=<a\ href=""/).*(?=""\ rel=)";
+	if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+	foreach (Match rxMatch in Regex.Matches(strWoman, regex)) {
+		if (rxMatch.Value!=string.Empty) lstLinkPhoto.Add("https://bridesbay.com/"+rxMatch.Value);
+	}
+
+	for (int c=0; c<lstLinkPhoto.Count; c++) {
+		if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+		if (lstLinkPhoto.Count==0) break;
+		strBestImageLink = lstLinkPhoto[0];
+		lstLinkPhoto.RemoveAt(0);
+		strFileDownloadResult = ZennoPoster.HttpGet(strBestImageLink, strProxy, "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.File, 15000,
+			"", DownloadPath: project.Directory + @"\Vk Happy Birday\baby\");
+		project.SendInfoToLog("Скачалось фото для заполнения аккаунта: "+strBestImageLink);
+	}
+	// Создаю пост на стене
+	project.ExecuteProject(rcg_path_auto, mapVars, true, true);
+	string strSourceDirectoryPath = project.Directory + @"\Vk Happy Birday\baby\";
+	lstPhoto.AddRange(Directory.GetFiles(strSourceDirectoryPath)); //используйте SearchOption.TopDirectoryOnly если не нужно искать в поддиректориях
+	for (int J=0; J<3; J++) {
+		int r = new Random().Next(0,lstPhoto.Count);
+		if (lstPhoto.Count==0) break;
+		strResultFileName = lstPhoto[r];
+		lstPhoto.RemoveAt(r);
+		if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+		if (strResultFileName!=string.Empty) {
+			instance.SetFileUploadPolicy("ok", ""); //устанавливаем политику загрузки файлов
+			instance.SetFilesForUpload(strResultFileName);
+//			if (J==0) {
+//				Tab1.FindElementByXPath("//span[@class='owner_photo_bubble_action_in']",0).Click();
+//				try {
+//					wHelper.ClickElementXPath(Tab1, true, null, "//button[contains(@class, 'flat_button upload_btn ')]", 0, ThrowErrors: false);
+//				} catch {
+//					Tab1.FindElementByXPath("//button[contains(@class, 'flat_button upload_btn ')]", 0).Click();
+//				}
+//				try {
+//					wHelper.ClickElementXPath(Tab1, true, null, "//button[contains(@id, 'owner_photo_done_edit')]", 0, ThrowErrors: false);
+//				} catch {
+//					Tab1.FindElementByXPath("//button[contains(@id, 'owner_photo_done_edit')]", 0).Click();
+//				}
+//				try {
+//					wHelper.ClickElementXPath(Tab1, true, null, "//button[@id='owner_photo_done']", 0);
+//				} catch {
+//					Tab1.FindElementByXPath("//button[@id='owner_photo_done']",0).Click();
+//				}
+//				Thread.Sleep(5000);
+//			}
+			try {
+				wHelper.ClickElementXPath(Tab1, true, null, "//div[contains(@class, 'media_selector')]/a", 0);
+			} catch {
+				Tab1.FindElementByXPath("//div[contains(@class, 'media_selector')]/a",0).Click();
+			}
+			Tab1.WaitDownloading();
+			try {
+				wHelper.ClickElementXPath(Tab1, true, null, "//span[@id='photos_choose_upload_area_label']", 0);
+			} catch {
+				Tab1.FindElementByXPath("//span[@id='photos_choose_upload_area_label']", 0).Click();
+			}			
+			Tab1.WaitDownloading();
+			Thread.Sleep(3000);
+			for (int n=0; n <10; n++) {
+				if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+				if (!Tab1.FindElementByXPath("//div[contains(@class, 'page_media_x')]",0).IsVoid || !Tab1.FindElementByXPath("//div[contains(@class, 'ui_thumb_x')]",0).IsVoid) {
+					break;
+				} else {
+					Thread.Sleep(3000);
+					continue;
+				}
+			}
+			File.Delete(strResultFileName);
+		}
+
+		if (lstTextPost.Count!=0) { 
+			strRandomText = lstTextPost[0];
+			lstTextPost.RemoveAt(0);
+			lstTextPost.Add(strRandomText);
+			Tab1.FindElementByXPath("//div[@id='post_field']", 0).SetValue("","Middle");
+			Thread.Sleep(2000);
+			Tab1.FindElementByXPath("//div[@id='post_field']", 0).SetValue(strRandomText + " " + strPornoLink,"Full");
+		}
+		Tab1.FindElementByXPath("//button[@id='send_post']", 0).Click();
+		Thread.Sleep(5000);
+		project.ExecuteProject(rcg_path, mapVars, true, true);
+		Tab1.FindElementByXPath("//button[@id='send_post']", 0).Click();
+		Thread.Sleep(5000);
+		project.SendInfoToLog("Пост в ВК опубликован, ссылка сохранена в log.txt",true);
+		project.ExecuteProject(rcg_path, mapVars, true, true);
+		// Получаем все записи со стены 
+		strQuery = String.Format("https://api.vk.com/method/wall.get?owner_id={0}&count=1&filter=owner&extended=0&access_token={1}&v=5.65", 
+			strUserId, Token);    
+		strAPIResponse = ZennoPoster.HttpGet(strQuery, "", "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.BodyOnly, 
+			AdditionalHeaders: new [] {"Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"});
+		JObject objParsedJson1 = JObject.Parse(strAPIResponse);
+		IEnumerable<JToken> userTokens1 = objParsedJson1.SelectTokens("response.items[*]", false);
+		foreach (JToken userToken in userTokens1) {
+			strId = (string) userToken.SelectToken("id");
+		}
+		// Закрепляю пост у себя на стене 
+		strQuery = String.Format("https://api.vk.com/method/wall.pin?owner_id={0}&post_id={1}&access_token={2}&v=5.68", 
+			strUserId, strId, Token); 
+		strAPIResponse = ZennoPoster.HttpGet(strQuery, "", "UTF-8", ZennoLab.InterfacesLibrary.Enums.Http.ResponceType.BodyOnly, 
+			AdditionalHeaders: new [] {"Accept-Language: ru-RU,ru;q=0.8,en-US;q=0.6,en;q=0.4"});	
+		project.SendInfoToLog("Пост на стене закрепил");
+	}
+	for (int d=0; d<lstPhoto.Count; d++) {
+		strResultFileName = lstPhoto[d];
+		File.Delete(strResultFileName);
+	}
+}
+if (boolWorkingLink) {
+	Tab1.Navigate("https://vk.com/edit?act=contacts");
+	Tab1.WaitDownloading();
+	Tab1.FindElementByXPath("//input[@id='pedit_website']",0).SetValue("","Middle");
+	Tab1.FindElementByXPath("//input[@id='pedit_website']",0).Click();
+	Thread.Sleep(1000);
+	Tab1.FindElementByXPath("//input[@id='pedit_website']",0).SetValue(strPornoLink,"Full");
+	Tab1.FindElementByXPath("//button[contains(@class, 'flat_button button_big_width')]",0).Click();
+	Tab1.WaitDownloading();	
+	project.SendInfoToLog("Место работы поменял",true);
+}
+if (blnPromoPost) {
+	if (strPathPromoImg==string.Empty) {
+		project.SendWarningToLog("Добавьте во входные настройки путь к папке с картинками и повторите попытку",true);
+		return "oki";
+	}
+	project.ExecuteProject(rcg_path_auto, mapVars, true, true);
+	Tab1.FindElementByXPath("//span[@class='left_label inl_bl']", 0).Click();
+	if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+	Tab1.FindElementByXPath("//div[contains(@class, 'media_selector')]/a", 0).Click();
+	Tab1.WaitDownloading();
+	instance.SetFileUploadPolicy("ok", ""); //устанавливаем политику загрузки файлов
+	//Присваиваем переменной путь к папке с файлами
+	int RND = rndGenerator.Next(0, lstIMG.Count);
+	strResultFileName = lstIMG[RND];
+	lstIMG.RemoveAt(RND);
+	project.SendInfoToLog("Получена картинка: " + strResultFileName);
+	Tab1.WaitDownloading();
+	instance.SetFilesForUpload(strResultFileName);
+	Tab1.FindElementByXPath("//span[contains(@id, 'upload')]", 0).Click();;
+	for (int n=0; n <10; n++) {
+		if(((ZennoLab.InterfacesLibrary.ProjectModel.Collections.IContextExt)project.Context).IsInterrupted) return null;
+		if (!Tab1.FindElementByXPath("//div[contains(@class, 'page_media_x')]",0).IsVoid || !Tab1.FindElementByXPath("//div[contains(@class, 'ui_thumb_x')]",0).IsVoid) {
+			break;
+		} else {
+			Thread.Sleep(3000);
+			continue;
+		}
+	}
+	File.Delete(strResultFileName);
+	strTextPromo = project.Variables["textPromo"].Value;
+	strSpintax = Macros.TextProcessing.Spintax(strTextPromo);
+	wHelper.SetElementValueXPath(Tab1, true, null, "//div[@id='post_field']", 0, strSpintax);
+	instance.WaitFieldEmulationDelay();
+	// Эмулировать ввод текста
+	instance.SendText("{HOME}", 15);
+	wHelper.ClickElementXPath(Tab1, true, null, "//button[@id='send_post']", 0);
+	project.ExecuteProject(rcg_path, mapVars, true, true);
+	for (int h=0; h<10; h++) {
+		Tab1.FindElementByXPath("//div[contains(@class, '_post')]/descendant::div[contains(@class, 'ui_actions_menu_icons')]", h).Click();
+		try {
+			Tab1.FindElementByXPath("//div[contains(@class, 'post')]/descendant::a[contains(@class, 'ui_actions_menu_item') and text()='Закрепить']", h).Click();
+			break;
+		} catch {
+			continue;
+		}
+	}
+	project.SendInfoToLog("Пост в ВК опубликован, ссылка сохранена в log.txt");
+	string strNewPost = Tab1.FindElementByXPath("//a/span[contains(@class, 'rel_date rel_date_needs_update')]/ancestor::a",0).GetAttribute("href");
+	lstLog.Add(strNewPost);	
+}
